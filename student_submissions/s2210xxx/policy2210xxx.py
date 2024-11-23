@@ -1,72 +1,111 @@
 from policy import Policy
 import numpy as np
+import pulp as lp
+import random
 
 class Policy2210xxx(Policy):
-    def __init__(self):
-        # Student code here
-        pass
+# SA (Simulated Annealing)
+    def __init__(self, initial_temp=100, cooling_rate=0.99):
+        """
+        Khởi tạo policy sử dụng Simulated Annealing (SA).
+        :param initial_temp: Nhiệt độ ban đầu cho thuật toán SA.
+        :param cooling_rate: Tỷ lệ giảm nhiệt độ.
+        """
+        self.temp = initial_temp
+        self.cooling_rate = cooling_rate
 
     def get_action(self, observation, info):
-        list_prods = observation["products"]
+        """
+        Lấy hành động bằng cách áp dụng Simulated Annealing để tìm giải pháp tốt nhất.
+        :param observation: Trạng thái hiện tại của môi trường.
+        :param info: Thông tin bổ sung từ môi trường.
+        :return: Từ điển chứa stock_idx, size, và position.
+        """
+        products = observation["products"]
         stocks = observation["stocks"]
 
-        # Sắp xếp sản phẩm theo diện tích giảm dần
-        list_prods = sorted(
-            list_prods, key=lambda p: p["size"][0] * p["size"][1], reverse=True
-        )
+        # Sinh giải pháp ban đầu
+        current_solution = self._generate_initial_solution(products, stocks)
+        best_solution = current_solution
 
-        for stock_idx, stock in enumerate(stocks):
-            stock_w, stock_h = self._get_stock_size_(stock)
+        # Bắt đầu vòng lặp Simulated Annealing
+        while self.temp > 1:
+            # Sinh giải pháp lân cận
+            neighbor_solution = self._generate_neighbor_solution(current_solution, products, stocks)
 
-            # Khởi tạo bảng DP
-            dp = [[{"num_products": 0, "used_area": 0, "placements": []}
-                   for _ in range(stock_h + 1)] for _ in range(stock_w + 1)]
+            # Đánh giá năng lượng của các giải pháp
+            current_energy = self._evaluate_solution(current_solution, products, stocks)
+            neighbor_energy = self._evaluate_solution(neighbor_solution, products, stocks)
 
-            # Duyệt qua từng sản phẩm
-            for prod in list_prods:
-                prod_width, prod_height = prod["size"]
-                if prod["quantity"] > 0:
-                    # Duyệt qua bảng DP từ lớn đến nhỏ
-                    for w in range(stock_w, prod_width - 1, -1):
-                        for h in range(stock_h, prod_height - 1, -1):
-                            if (
-                                dp[w - prod_width][h - prod_height]["num_products"] + 1
-                                > dp[w][h]["num_products"]
-                                and self._can_place_(stock, (w - prod_width, h - prod_height), prod["size"])
-                            ):
-                                dp[w][h]["num_products"] = (
-                                    dp[w - prod_width][h - prod_height]["num_products"] + 1
-                                )
-                                dp[w][h]["used_area"] = (
-                                    dp[w - prod_width][h - prod_height]["used_area"]
-                                    + (prod_width * prod_height)
-                                )
-                                dp[w][h]["placements"] = (
-                                    dp[w - prod_width][h - prod_height]["placements"]
-                                    + [(prod, (w - prod_width, h - prod_height))]
-                                )
+            # Quyết định chấp nhận giải pháp lân cận
+            if self._acceptance_probability(current_energy, neighbor_energy, self.temp) > random.random():
+                current_solution = neighbor_solution
 
-            # Tìm vị trí tốt nhất trong bảng DP
-            max_products = 0
-            best_placement = None
-            for w in range(stock_w + 1):
-                for h in range(stock_h + 1):
-                    if dp[w][h]["num_products"] > max_products:
-                        max_products = dp[w][h]["num_products"]
-                        best_placement = dp[w][h]["placements"]
+            # Cập nhật giải pháp tốt nhất
+            if neighbor_energy < self._evaluate_solution(best_solution, products, stocks):
+                best_solution = neighbor_solution
 
-            # Nếu tìm thấy cách xếp
-            if best_placement:
-                # Đặt các sản phẩm vào vị trí đã chọn
-                for placement in best_placement:
-                    prod, pos = placement
-                    if prod["quantity"] > 0:
-                        prod["quantity"] -= 1
-                        return {
-                            "stock_idx": stock_idx,
-                            "size": prod["size"],
-                            "position": pos,
-                        }
+            # Giảm nhiệt độ
+            self.temp *= self.cooling_rate
 
-        # Nếu không tìm thấy vị trí hợp lệ
-        return {"stock_idx": -1, "size": [0, 0], "position": (None, None)}
+        # Trả về giải pháp tốt nhất
+        return best_solution
+
+    def _generate_initial_solution(self, products, stocks):
+        """
+        Sinh giải pháp ban đầu ngẫu nhiên.
+        """
+        for i, product in enumerate(products):
+            if product["quantity"] > 0:
+                for j, stock in enumerate(stocks):
+                    stock_w, stock_h = self._get_stock_size_(stock)
+                    prod_w, prod_h = product["size"]
+
+                    for x_pos in range(stock_w - prod_w + 1):
+                        for y_pos in range(stock_h - prod_h + 1):
+                            if self._can_place_(stock, (x_pos, y_pos), (prod_w, prod_h)):
+                                return {"stock_idx": j, "size": (prod_w, prod_h), "position": (x_pos, y_pos)}
+        return {"stock_idx": -1, "size": [0, 0], "position": (0, 0)}
+
+    def _generate_neighbor_solution(self, current_solution, products, stocks):
+        """
+        Sinh giải pháp lân cận bằng cách thay đổi vị trí ngẫu nhiên.
+        """
+        stock_idx = current_solution["stock_idx"]
+        if stock_idx == -1:
+            return current_solution
+
+        stock = stocks[stock_idx]
+        stock_w, stock_h = self._get_stock_size_(stock)
+
+        prod_w, prod_h = current_solution["size"]
+        x_pos = random.randint(0, stock_w - prod_w)
+        y_pos = random.randint(0, stock_h - prod_h)
+
+        if self._can_place_(stock, (x_pos, y_pos), (prod_w, prod_h)):
+            return {"stock_idx": stock_idx, "size": (prod_w, prod_h), "position": (x_pos, y_pos)}
+        return current_solution
+
+    def _evaluate_solution(self, solution, products, stocks):
+        """
+        Đánh giá năng lượng của giải pháp: Diện tích lãng phí.
+        """
+        stock_idx = solution["stock_idx"]
+        if stock_idx == -1:
+            return float("inf")  # Không đặt được sản phẩm => năng lượng cực cao
+
+        stock = stocks[stock_idx]
+        stock_w, stock_h = self._get_stock_size_(stock)
+        prod_w, prod_h = solution["size"]
+
+        # Tính lãng phí: Phần còn lại của kho sau khi đặt sản phẩm
+        wasted_area = (stock_w * stock_h) - (prod_w * prod_h)
+        return wasted_area
+
+    def _acceptance_probability(self, current_energy, neighbor_energy, temp):
+        """
+        Tính xác suất chấp nhận giải pháp kém hơn dựa trên nhiệt độ.
+        """
+        if neighbor_energy < current_energy:
+            return 1.0
+        return np.exp((current_energy - neighbor_energy) / temp)
