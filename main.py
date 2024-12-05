@@ -21,24 +21,17 @@ if __name__ == "__main__":
     observation, info = env.reset(seed=42)
 
     # Test GreedyPolicy
-    gd_policy = GreedyPolicy()
-    ep = 0
-    while ep < NUM_EPISODES:
-        action = gd_policy.get_action(observation, info)
-        observation, reward, terminated, truncated, info = env.step(action)
+    # gd_policy = GreedyPolicy()
+    # ep = 0
+    # while ep < NUM_EPISODES:
+    #     action = gd_policy.get_action(observation, info)
+    #     observation, reward, terminated, truncated, info = env.step(action)
 
-        if terminated or truncated:
-            print(info)
-            observation, info = env.reset(seed=ep)
-            ep += 1
+    #     if terminated or truncated:
+    #         print(info)
+    #         observation, info = env.reset(seed=ep)
+    #         ep += 1
             
-    # In thời gian kết thúc
-    end_time = time.time()
-    print(f"Thời gian kết thúc: {time.ctime(end_time)}")
-
-    # Tính toán thời gian trôi qua (elapse time)
-    elapse_time = end_time - start_time
-    print(f"Elapse time: {elapse_time:.6f} giây")
 
     # Reset the environment
     # observation, info = env.reset(seed=42)
@@ -57,20 +50,20 @@ if __name__ == "__main__":
 
     # Uncomment the following code to test your policy
     # Reset the environment
-    # observation, info = env.reset(seed=42)
+    observation, info = env.reset(seed=42)
 
-    # policy2210xxx = Policy2210xxx()
-    # # code lấy từ phía trên 
-    # ep = 0
-    # while ep < NUM_EPISODES:
-    #     action = policy2210xxx.get_action(observation, info)
-    #     observation, reward, terminated, truncated, info = env.step(action)
+    policy2210xxx = Policy2210xxx()
+    # code lấy từ phía trên 
+    ep = 0
+    while ep < NUM_EPISODES:
+        action = policy2210xxx.get_action(observation, info)
+        observation, reward, terminated, truncated, info = env.step(action)
 
-    #     if terminated or truncated:
-    #         print(info)
-    #         observation, info = env.reset(seed=ep)
-    #         #print(info)
-    #         ep += 1
+        if terminated or truncated:
+            print(info)
+            observation, info = env.reset(seed=ep)
+            #print(info)
+            ep += 1
 
     # code ban đầu của thầy 
     # for _ in range(200):
@@ -80,6 +73,14 @@ if __name__ == "__main__":
     #     if terminated or truncated:
     #         print(info)
     #         observation, info = env.reset()
+
+    # In thời gian kết thúc
+    end_time = time.time()
+    print(f"Thời gian kết thúc: {time.ctime(end_time)}")
+
+    # Tính toán thời gian trôi qua (elapse time)
+    elapse_time = end_time - start_time
+    print(f"Elapse time: {elapse_time:.6f} giây")
 
 env.close()
 
